@@ -1,0 +1,2 @@
+makeglobalsimmutable()
+print("here")

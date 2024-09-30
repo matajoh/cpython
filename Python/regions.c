@@ -156,7 +156,21 @@ PyObject* walk_function(PyObject* op, stack* frontier)
     // func_globals, func_builtins, and func_module can stay mutable, but depending on code we may need to make some keys immutable
     globals = f->func_globals;
     builtins = f->func_builtins;
+    _Py_VPYDBG("func_module: ");
+    _Py_VPYDBGPRINT(f->func_module);
+    _Py_VPYDBG("\n");
+
+    if(PyUnicode_CompareWithASCIIString(f->func_module, "_frozen_importlib")){
+        // we don't want to freeze the importlib module
+        _Py_VPYDBG("skipping importlib\n");
+        Py_RETURN_NONE;
+    }
+
     module = PyImport_Import(f->func_module);
+    if(module == NULL){
+        return module;
+    }
+
     if(PyModule_Check(module)){
         module_dict = PyModule_GetDict(module);
     }else{
@@ -362,9 +376,29 @@ PyObject* walk_function(PyObject* op, stack* frontier)
 
 int _makeimmutable_visit(PyObject* obj, void* frontier)
 {
+    if(PyModule_Check(obj)){
+        const char* name = PyModule_GetName(obj);
+        if(strcmp(name, "sys") == 0){
+            _Py_VPYDBG("skipping sys module\n");
+            return 0;
+        }
+
+        if(strcmp(name, "_frozen_importlib_external") == 0){
+            _Py_VPYDBG("skipping _frozen_importlib_external module\n");
+            return 0;
+        }
+
+        if(strcmp(name, "_frozen_importlib") == 0){
+            _Py_VPYDBG("skipping _frozen_importlib module\n");
+            return 0;
+        }
+    }
+
     _Py_VPYDBG("visit(");
     _Py_VPYDBGPRINT(obj);
-    _Py_VPYDBG(") region: %lu rc: %ld\n", Py_REGION(obj), Py_REFCNT(obj));
+    _Py_VPYDBG("[");
+    _Py_VPYDBGPRINT(obj->ob_type);
+    _Py_VPYDBG("]) region: %lu rc: %ld\n", Py_REGION(obj), Py_REFCNT(obj));
     if(!_Py_IsImmutable(obj)){
         if(stack_push((stack*)frontier, obj)){
             PyErr_NoMemory();
@@ -486,7 +520,31 @@ bool globals_immutable = false;
 
 PyObject* Py_MakeGlobalsImmutable()
 {
+    PyObject* ret;
+
+    _Py_VPYDBG(">> makeglobalsimmutable\n");
+
+    // go module by module and freeze their global dictionaries
+    PyObject* modules = PyImport_GetModuleDict();
+    Py_ssize_t size = PyDict_Size(modules);
+    PyObject* keys = PyDict_Keys(modules);
+    for(Py_ssize_t i = 0; i < size; i++){
+        PyObject* key = PyList_GetItem(keys, i);
+        _Py_VPYDBG("module: ");
+        _Py_VPYDBGPRINT(key);
+        _Py_VPYDBG("\n");
+        PyObject* module = PyDict_GetItem(modules, key);
+        PyObject* globals = PyModule_GetDict(module);
+        ret = _Py_MakeImmutable(globals);
+        if(ret == NULL){
+            _Py_VPYDBG("<< makeglobalsimmutable failed\n");
+            Py_DECREF(keys);
+            return NULL;
+        }
+    }
+
     globals_immutable = true;
+    _Py_VPYDBG("<< makeglobalsimmutable complete\n");
     Py_RETURN_NONE;
 }
 
