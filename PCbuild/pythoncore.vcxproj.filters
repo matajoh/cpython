@@ -1052,9 +1052,6 @@
     <ClCompile Include="..\Objects\rangeobject.c">
       <Filter>Objects</Filter>
     </ClCompile>
-    <ClCompile Include="..\Objects\regions.c">
-      <Filter>Objects</Filter>
-    </ClCompile>
     <ClCompile Include="..\Objects\setobject.c">
       <Filter>Objects</Filter>
     </ClCompile>
@@ -1254,6 +1251,9 @@
       <Filter>Python</Filter>
     </ClCompile>
     <ClCompile Include="..\Python\pythonrun.c">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Python\regions.c">
       <Filter>Python</Filter>
     </ClCompile>
     <ClCompile Include="..\Python\specialize.c">

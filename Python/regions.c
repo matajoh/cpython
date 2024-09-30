@@ -481,3 +481,16 @@ next:
 
     return obj;
 }
+
+bool globals_immutable = false;
+
+PyObject* Py_MakeGlobalsImmutable()
+{
+    globals_immutable = true;
+    Py_RETURN_NONE;
+}
+
+bool _PyBehaviorRuntime_CheckInit()
+{
+    return globals_immutable;
+}

@@ -2770,10 +2770,24 @@ Make 'obj' and its entire reachable object graph immutable.
 
 static PyObject *
 builtin_makeimmutable(PyObject *module, PyObject *obj)
-/*[clinic end generated code: output=4e665122542dfd24 input=21a50256fa4fb099]*/
+/*[clinic end generated code: output=4e665122542dfd24 input=bec4cf1797c848d4]*/
 {
     return Py_MakeImmutable(obj);
 }
+
+/*[clinic input]
+makeglobalsimmutable as builtin_makeglobalsimmutable
+
+Make all globals and the global dictionary immutable.
+[clinic start generated code]*/
+
+static PyObject *
+builtin_makeglobalsimmutable_impl(PyObject *module)
+/*[clinic end generated code: output=6e689380d1cd629c input=e31cfac504e8ba55]*/
+{
+    return Py_MakeGlobalsImmutable();
+}
+
 
 typedef struct {
     PyObject_HEAD
@@ -3075,6 +3089,7 @@ static PyMethodDef builtin_methods[] = {
     BUILTIN_ISSUBCLASS_METHODDEF
     BUILTIN_ISIMMUTABLE_METHODDEF
     BUILTIN_MAKEIMMUTABLE_METHODDEF
+    BUILTIN_MAKEGLOBALSIMMUTABLE_METHODDEF
     BUILTIN_ITER_METHODDEF
     BUILTIN_AITER_METHODDEF
     BUILTIN_LEN_METHODDEF
