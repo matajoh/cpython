@@ -5,12 +5,13 @@ to subinterpreters. To begin, this requires adding two new builtins to the
 language:
 
 ```python
-def send(interp: InterpreterID, obj: Any):
+def send(obj: Any, interp: InterpreterID = None):
 """Send obj to the target interpreter.
 
 Args:
-    interp: The ID of the target interpreter
     obj: Any sendable object
+    interp: The ID of the target interpreter. If None, send to the main
+            interpreter.
 
 Raises:
     Shutdown: If the interpreter has been shut down

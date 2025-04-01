@@ -1427,4 +1427,75 @@ PyDoc_STRVAR(builtin_freeze__doc__,
 
 #define BUILTIN_FREEZE_METHODDEF    \
     {"freeze", (PyCFunction)builtin_freeze, METH_O, builtin_freeze__doc__},
-/*[clinic end generated code: output=2967e6388573aa0b input=a9049054013a1b77]*/
+
+PyDoc_STRVAR(builtin_send__doc__,
+"send($module, obj, interpreter_id=None, /)\n"
+"--\n"
+"\n"
+"Send a object to the interpreter with the given id.");
+
+#define BUILTIN_SEND_METHODDEF    \
+    {"send", _PyCFunction_CAST(builtin_send), METH_FASTCALL, builtin_send__doc__},
+
+static PyObject *
+builtin_send_impl(PyObject *module, PyObject *obj, PyObject *interpreter_id);
+
+static PyObject *
+builtin_send(PyObject *module, PyObject *const *args, Py_ssize_t nargs)
+{
+    PyObject *return_value = NULL;
+    PyObject *obj;
+    PyObject *interpreter_id = NULL;
+
+    if (!_PyArg_CheckPositional("send", nargs, 1, 2)) {
+        goto exit;
+    }
+    obj = args[0];
+    if (nargs < 2) {
+        goto skip_optional;
+    }
+    interpreter_id = args[1];
+skip_optional:
+    return_value = builtin_send_impl(module, obj, interpreter_id);
+
+exit:
+    return return_value;
+}
+
+PyDoc_STRVAR(builtin_receive__doc__,
+"receive($module, blocking=True, timeout=None, /)\n"
+"--\n"
+"\n"
+"Receive an object send to the interpreter.");
+
+#define BUILTIN_RECEIVE_METHODDEF    \
+    {"receive", _PyCFunction_CAST(builtin_receive), METH_FASTCALL, builtin_receive__doc__},
+
+static PyObject *
+builtin_receive_impl(PyObject *module, PyObject *blocking, PyObject *timeout);
+
+static PyObject *
+builtin_receive(PyObject *module, PyObject *const *args, Py_ssize_t nargs)
+{
+    PyObject *return_value = NULL;
+    PyObject *blocking = Py_True;
+    PyObject *timeout = Py_None;
+
+    if (!_PyArg_CheckPositional("receive", nargs, 0, 2)) {
+        goto exit;
+    }
+    if (nargs < 1) {
+        goto skip_optional;
+    }
+    blocking = args[0];
+    if (nargs < 2) {
+        goto skip_optional;
+    }
+    timeout = args[1];
+skip_optional:
+    return_value = builtin_receive_impl(module, blocking, timeout);
+
+exit:
+    return return_value;
+}
+/*[clinic end generated code: output=2bc4ef7fad3b51b0 input=a9049054013a1b77]*/

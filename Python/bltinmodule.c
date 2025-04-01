@@ -13,6 +13,7 @@
 #include "pycore_ceval.h"         // _PyEval_Vector()
 #include "pycore_immutability.h"  // _PyFreeze()
 #include "pycore_dict.h"          // _PyDict_SetGlobalImmutable()
+#include "interpreteridobject.h"  // _PyInterpreterID_LookUp
 
 #include "clinic/bltinmodule.c.h"
 
@@ -2772,6 +2773,75 @@ builtin_freeze(PyObject *module, PyObject *obj)
     return Py_Freeze(obj);
 }
 
+/*[clinic input]
+send as builtin_send
+
+    obj: object
+    interpreter_id: object(c_default="NULL") = None
+    /
+
+Send a object to the interpreter with the given id.
+[clinic start generated code]*/
+
+static PyObject *
+builtin_send_impl(PyObject *module, PyObject *obj, PyObject *interpreter_id)
+/*[clinic end generated code: output=76166bbbbe9629d8 input=733ff1819929967f]*/
+{
+    PyInterpreterState* interp;
+    if(interpreter_id == NULL){
+        interp = PyInterpreterState_Main();
+    }else{
+        interp = _PyInterpreterID_LookUp(interpreter_id);
+    }
+
+    if (interp == NULL) {
+        PyErr_SetString(PyExc_ValueError,
+                        "interpreter_id is not valid");
+        return NULL;
+    }
+    if (_PyInterpreterState_Send(interp, obj) == 0) {
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
+/*[clinic input]
+receive as builtin_receive
+
+    blocking: object = True
+    timeout: object = None
+    /
+
+Receive an object send to the interpreter.
+[clinic start generated code]*/
+
+static PyObject *
+builtin_receive_impl(PyObject *module, PyObject *blocking, PyObject *timeout)
+/*[clinic end generated code: output=2edfc6f28dd23b4f input=0ebfa654366f7697]*/
+{
+    PyInterpreterState* interp;
+    long long timeout_us;
+    if(!PyBool_Check(blocking)){
+        PyErr_SetString(PyExc_ValueError,
+                        "blocking must be a boolean");
+        return NULL;
+    }
+
+    if(Py_IsNone(timeout)){
+        timeout_us = -1;
+    }else if(PyLong_Check(timeout)){
+        timeout_us = PyLong_AsLong(timeout);
+    }else{
+        PyErr_SetString(PyExc_ValueError,
+                        "timeout must be a integer");
+        return NULL;
+    }
+
+    interp = PyInterpreterState_Get();
+    return _PyInterpreterState_Receive(interp, blocking, timeout_us);
+}
+
 
 typedef struct {
     PyObject_HEAD
@@ -3073,6 +3143,8 @@ static PyMethodDef builtin_methods[] = {
     BUILTIN_ISSUBCLASS_METHODDEF
     BUILTIN_ISIMMUTABLE_METHODDEF
     BUILTIN_FREEZE_METHODDEF
+    BUILTIN_SEND_METHODDEF
+    BUILTIN_RECEIVE_METHODDEF
     BUILTIN_ITER_METHODDEF
     BUILTIN_AITER_METHODDEF
     BUILTIN_LEN_METHODDEF
