@@ -43,7 +43,8 @@ This functionality will also be exposed at the C ABI level as:
  *
  * Returns: 0 if successful, 1 if an error has occured
  */
-int _PyInterpreterState_Send(PyInterpreterState* interp, PyObject* o)
+int
+_PyInterpreterState_Send(PyInterpreterState* interp, PyObject* o)
 
 /**
  * Receive an object sent to the specified interpreter.
@@ -56,7 +57,8 @@ int _PyInterpreterState_Send(PyInterpreterState* interp, PyObject* o)
  * 
  * Returns: object if successful, NULL if there was an error
  */
-PyObject* Py_Receive(PyInterpreterState* interp, bool blocking, int timeout)
+PyObject*
+_PyInterpreterState_Receive(PyInterpreterState* interp, bool blocking, long long timeout)
 ```
 
 ## Implementation details

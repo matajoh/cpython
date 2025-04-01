@@ -887,6 +887,8 @@ interpreter_clear(PyInterpreterState *interp, PyThreadState *tstate)
             interp->messages_front = curr->next;
             PyMem_RawFree(curr);
         }
+
+        interp->messages_back = NULL;
     }
 
     if(PyMUTEX_UNLOCK(&interp->messages_mutex)){
@@ -1252,11 +1254,24 @@ _PyInterpreterState_Send(PyInterpreterState* interp, PyObject* op)
     return 0;
 }
 
+static PyObject* pop_front(PyInterpreterState* interp)
+{
+    _PyInterpreterMessage* curr = interp->messages_front;
+    PyObject* op = curr->op;
+    interp->messages_front = curr->next;
+    if(interp->messages_front == NULL){
+        interp->messages_back = NULL;
+    }
+    PyMem_RawFree(curr);
+    return op;
+}
+
 /** Single consumer. Only the interpreter can receive its messages. */
 PyObject*
 _PyInterpreterState_Receive(PyInterpreterState* interp, bool blocking, long long timeout)
 {
     PyThreadState *ts;
+    PyObject* op = NULL;
 
     if(_Py_IsInterpreterFinalizing(interp)){
         PyErr_SetString(PyExc_RuntimeError,
@@ -1282,13 +1297,7 @@ _PyInterpreterState_Receive(PyInterpreterState* interp, bool blocking, long long
     PyEval_RestoreThread(ts);
 
     if(interp->messages_front != NULL){
-        _PyInterpreterMessage* curr = interp->messages_front;
-        PyObject* op = curr->op;
-        interp->messages_front = curr->next;
-        if(interp->messages_front == NULL){
-            interp->messages_back = NULL;
-        }
-        PyMem_RawFree(curr);
+        op = pop_front(interp);
         PyMUTEX_UNLOCK(&interp->messages_mutex);
         return op;
     }
@@ -1309,17 +1318,10 @@ _PyInterpreterState_Receive(PyInterpreterState* interp, bool blocking, long long
         }
 
         PyEval_RestoreThread(ts);
-
         if(interp->messages_front != NULL){
-            _PyInterpreterMessage* curr = interp->messages_front;
-            PyObject* op = curr->op;
-            interp->messages_front = curr->next;
-            if(interp->messages_front == NULL){
-                interp->messages_back = NULL;
-            }
-            PyMem_RawFree(curr);
+            op = pop_front(interp);
             PyMUTEX_UNLOCK(&interp->messages_mutex);
-            return op;
+            return op;    
         }
 
         PyMUTEX_UNLOCK(&interp->messages_mutex);
@@ -1338,13 +1340,7 @@ _PyInterpreterState_Receive(PyInterpreterState* interp, bool blocking, long long
     }
 
     PyEval_RestoreThread(ts);
-    _PyInterpreterMessage* curr = interp->messages_front;
-    PyObject* op = curr->op;
-    interp->messages_front = curr->next;
-    if(interp->messages_front == NULL){
-        interp->messages_back = NULL;
-    }
-    PyMem_RawFree(curr);
+    op = pop_front(interp);
     PyMUTEX_UNLOCK(&interp->messages_mutex);
     return op;
 }
