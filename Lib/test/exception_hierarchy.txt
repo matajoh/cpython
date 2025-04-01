@@ -54,6 +54,7 @@ BaseException
       │         ├── UnicodeEncodeError
       │         └── UnicodeTranslateError
       ├── NotWriteableError
+      ├── NoMessagesError
       └── Warning
            ├── BytesWarning
            ├── DeprecationWarning

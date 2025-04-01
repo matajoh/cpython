@@ -3435,6 +3435,10 @@ SimpleExtendsException(PyExc_Exception, BufferError, "Buffer error.");
  */
 SimpleExtendsException(PyExc_Exception, NotWriteableError, "Object is not writeable.");
 
+/*
+ *    NoMessagesError extends Exception
+ */
+SimpleExtendsException(PyExc_Exception, NoMessagesError, "No messages available on this interpreter.");
 
 /* Warning category docstrings */
 
@@ -3621,6 +3625,7 @@ static struct static_exception static_exceptions[] = {
     ITEM(TypeError),
     ITEM(ValueError),
     ITEM(NotWriteableError),
+    ITEM(NoMessagesError),
     ITEM(Warning),
 
     // Level 4: ArithmeticError(Exception) subclasses

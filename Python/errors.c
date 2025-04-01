@@ -1982,6 +1982,20 @@ _PyErr_WriteToImmutableKey(const char* filename, int lineno, PyObject* key)
     return NULL;
 }
 
+PyObject *
+_PyErr_NoMessages()
+{
+    PyThreadState *tstate = _PyThreadState_GET();
+    if (!_PyErr_Occurred(tstate)) {
+        PyObject *string = PyUnicode_FromString("No messages available on this interpreter.");
+        if (string != NULL) {
+            _PyErr_SetObject(tstate, PyExc_NoMessagesError, string);
+            Py_DECREF(string);
+        }
+    }
+    return NULL;
+}
+
 #ifdef __cplusplus
 }
 #endif

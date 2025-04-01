@@ -39,6 +39,12 @@ struct _Py_long_state {
     int max_str_digits;
 };
 
+/* messages between interpreters */
+typedef struct _Py_interp_message {
+    PyObject *op;
+    struct _Py_interp_message *next;
+} _PyInterpreterMessage;
+
 /* interpreter state */
 
 /* PyInterpreterState holds the global state for one of the runtime's
@@ -194,6 +200,11 @@ struct _is {
     struct _Py_interp_cached_objects cached_objects;
     struct _Py_interp_static_objects static_objects;
 
+    PyMUTEX_T messages_mutex;
+    PyCOND_T messages_cond;
+    _PyInterpreterMessage *messages_front;
+    _PyInterpreterMessage *messages_back;
+
    /* the initial PyInterpreterState.threads.head */
     PyThreadState _initial_thread;
 };
@@ -235,6 +246,9 @@ PyAPI_FUNC(PyInterpreterState*) _PyInterpreterState_LookUpID(int64_t);
 PyAPI_FUNC(int) _PyInterpreterState_IDInitref(PyInterpreterState *);
 PyAPI_FUNC(int) _PyInterpreterState_IDIncref(PyInterpreterState *);
 PyAPI_FUNC(void) _PyInterpreterState_IDDecref(PyInterpreterState *);
+
+PyAPI_FUNC(int) _PyInterpreterState_Send(PyInterpreterState*, PyObject*);
+PyAPI_FUNC(PyObject*) _PyInterpreterState_Receive(PyInterpreterState*, bool, long long);
 
 #ifdef __cplusplus
 }

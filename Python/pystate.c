@@ -14,6 +14,7 @@
 #include "pycore_pystate.h"
 #include "pycore_runtime_init.h"  // _PyRuntimeState_INIT
 #include "pycore_sysmodule.h"
+#include "condvar.h"           // PyCOND_T, PyMUTEX_T, PyCOND_INIT(), PyMUTEX_INIT()
 
 /* --------------------------------------------------------------------------
 CAUTION
@@ -695,6 +696,15 @@ init_interpreter(PyInterpreterState *interp,
         interp->dtoa = (struct _dtoa_state)_dtoa_state_INIT(interp);
     }
     interp->f_opcode_trace_set = false;
+
+    if(PyMUTEX_INIT(&interp->messages_mutex)){
+        Py_FatalError("Failed to initialize messages mutex");
+    }
+
+    if(PyCOND_INIT(&interp->messages_cond)){
+        Py_FatalError("Failed to initialize messages conditional variable");
+    }
+
     interp->_initialized = 1;
 }
 
@@ -865,6 +875,31 @@ interpreter_clear(PyInterpreterState *interp, PyThreadState *tstate)
     Py_CLEAR(interp->after_forkers_parent);
     Py_CLEAR(interp->after_forkers_child);
 #endif
+
+    if(PyMUTEX_LOCK(&interp->messages_mutex)){
+        Py_FatalError("Failed to lock messages mutex");
+    }
+
+    if(interp->messages_front != NULL){
+        while(interp->messages_front != NULL){
+            _PyInterpreterMessage* curr = interp->messages_front;
+            Py_CLEAR(curr->op);
+            interp->messages_front = curr->next;
+            PyMem_RawFree(curr);
+        }
+    }
+
+    if(PyMUTEX_UNLOCK(&interp->messages_mutex)){
+        Py_FatalError("Failed to unlock messages mutex");
+    }
+
+    if(PyMUTEX_FINI(&interp->messages_mutex)){
+        Py_FatalError("Failed to finalize messages mutex");
+    }
+
+    if(PyCOND_FINI(&interp->messages_cond)){
+        Py_FatalError("Failed to finalize messages cond");
+    }
 
     _PyAST_Fini(interp);
     _PyWarnings_Fini(interp);
@@ -1147,6 +1182,171 @@ PyInterpreterState_GetDict(PyInterpreterState *interp)
     }
     /* Returning NULL means no per-interpreter dict is available. */
     return interp->dict;
+}
+
+//----------
+// messages
+//----------
+
+int
+_PyInterpreterState_Send(PyInterpreterState* interp, PyObject* op)
+{
+    PyThreadState *ts;
+
+    if(_Py_IsInterpreterFinalizing(interp)){
+        PyErr_SetString(PyExc_RuntimeError,
+                        "interpreter is finalizing");
+        return -1;
+    }
+
+    ts = PyEval_SaveThread();
+
+    if(PyMUTEX_LOCK(&interp->messages_mutex)){
+        PyEval_RestoreThread(ts);
+        PyErr_SetString(PyExc_RuntimeError,
+                        "failed to acquire interpreter message mutex");
+        return -1;
+    }
+
+    PyEval_RestoreThread(ts);
+
+    if(_Py_IsInterpreterFinalizing(interp)){
+        PyMUTEX_UNLOCK(&interp->messages_mutex);
+        PyErr_SetString(PyExc_RuntimeError,
+                        "interpreter is finalizing");
+        return -1;
+    }
+
+    if(interp->messages_front == NULL){
+        interp->messages_front = PyMem_RawMalloc(sizeof(_PyInterpreterMessage));
+        if(interp->messages_front == NULL){
+            PyMUTEX_UNLOCK(&interp->messages_mutex);
+            PyErr_NoMemory();
+            return -1;
+        }
+        interp->messages_front->op = op;
+        Py_INCREF(op);
+        interp->messages_front->next = NULL;
+        interp->messages_back = interp->messages_front;
+    }else{
+        interp->messages_back->next = PyMem_RawMalloc(sizeof(_PyInterpreterMessage));
+        if(interp->messages_back->next == NULL){
+            PyMUTEX_UNLOCK(&interp->messages_mutex);
+            PyErr_NoMemory();
+            return -1;
+        }
+        interp->messages_back = interp->messages_back->next;
+        interp->messages_back->op = op;
+        Py_INCREF(op);
+        interp->messages_back->next = NULL;
+    }
+
+    if(PyCOND_SIGNAL(&interp->messages_cond)){
+        PyMUTEX_UNLOCK(&interp->messages_mutex);
+        PyErr_SetString(PyExc_RuntimeError,
+                        "failed to signal interpreter message condition");
+        return -1;
+    }
+
+    PyMUTEX_UNLOCK(&interp->messages_mutex);
+    return 0;
+}
+
+/** Single consumer. Only the interpreter can receive its messages. */
+PyObject*
+_PyInterpreterState_Receive(PyInterpreterState* interp, bool blocking, long long timeout)
+{
+    PyThreadState *ts;
+
+    if(_Py_IsInterpreterFinalizing(interp)){
+        PyErr_SetString(PyExc_RuntimeError,
+                        "interpreter is finalizing");
+        return NULL;
+    }
+
+    ts = PyEval_SaveThread();
+    if(ts->interp != interp){
+        PyEval_RestoreThread(ts);
+        PyErr_SetString(PyExc_RuntimeError,
+                        "cannot receive messages from another interpreter");
+        return NULL;
+    }
+
+    if(PyMUTEX_LOCK(&interp->messages_mutex)){
+        PyEval_RestoreThread(ts);
+        PyErr_SetString(PyExc_RuntimeError,
+                        "failed to acquire interpreter message mutex");
+        return NULL;
+    }
+
+    PyEval_RestoreThread(ts);
+
+    if(interp->messages_front != NULL){
+        _PyInterpreterMessage* curr = interp->messages_front;
+        PyObject* op = curr->op;
+        interp->messages_front = curr->next;
+        if(interp->messages_front == NULL){
+            interp->messages_back = NULL;
+        }
+        PyMem_RawFree(curr);
+        PyMUTEX_UNLOCK(&interp->messages_mutex);
+        return op;
+    }
+
+    if(!blocking){
+        PyMUTEX_UNLOCK(&interp->messages_mutex);
+        _PyErr_NoMessages();
+        return NULL;
+    }
+
+    if(timeout > 0){
+        ts = PyEval_SaveThread();
+        if(PyCOND_TIMEDWAIT(&interp->messages_cond, &interp->messages_mutex, timeout)){
+            PyEval_RestoreThread(ts);
+            PyMUTEX_UNLOCK(&interp->messages_mutex);
+            _PyErr_NoMessages();
+            return NULL;
+        }
+
+        PyEval_RestoreThread(ts);
+
+        if(interp->messages_front != NULL){
+            _PyInterpreterMessage* curr = interp->messages_front;
+            PyObject* op = curr->op;
+            interp->messages_front = curr->next;
+            if(interp->messages_front == NULL){
+                interp->messages_back = NULL;
+            }
+            PyMem_RawFree(curr);
+            PyMUTEX_UNLOCK(&interp->messages_mutex);
+            return op;
+        }
+
+        PyMUTEX_UNLOCK(&interp->messages_mutex);
+        _PyErr_NoMessages();
+        return NULL;
+    }
+
+    ts = PyEval_SaveThread();
+    while(interp->messages_front == NULL){
+        if(PyCOND_WAIT(&interp->messages_cond, &interp->messages_mutex)){
+            PyEval_RestoreThread(ts);
+            PyMUTEX_UNLOCK(&interp->messages_mutex);
+            _PyErr_NoMessages();
+            return NULL;
+        }
+    }
+
+    PyEval_RestoreThread(ts);
+    _PyInterpreterMessage* curr = interp->messages_front;
+    PyObject* op = curr->op;
+    interp->messages_front = curr->next;
+    if(interp->messages_front == NULL){
+        interp->messages_back = NULL;
+    }
+    PyMem_RawFree(curr);
+    PyMUTEX_UNLOCK(&interp->messages_mutex);
+    return op;
 }
 
 

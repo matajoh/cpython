@@ -174,6 +174,7 @@ PyAPI_FUNC(PyObject *) _PyErr_WriteToImmutable(const char* file, int line, PyObj
 PyAPI_FUNC(PyObject *) _PyErr_WriteToImmutableKey(const char* file, int line, PyObject *key);
 #define PyErr_WriteToImmutableKey(key) _PyErr_WriteToImmutableKey(__FILE__, __LINE__, _PyObject_CAST(key))
 
+PyAPI_FUNC(PyObject *) _PyErr_NoMessages(void);
 
 extern PyObject *_PyErr_SetImportErrorWithNameFrom(
         PyObject *,

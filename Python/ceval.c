@@ -232,6 +232,8 @@ _PyEvalFrameClearAndPop(PyThreadState *tstate, _PyInterpreterFrame *frame);
     " value in enclosing scope"
 #define NOT_WRITEABLE_ERROR_MSG \
     "cannot write to local variable '%s'"
+#define NO_MESSAGES_ERROR_MSG \
+    "No messages available on this interpreter."
 
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
@@ -2741,6 +2743,18 @@ format_exc_notwriteable(PyThreadState *tstate, PyCodeObject *co, int oparg)
     name = PyTuple_GET_ITEM(co->co_localsplusnames, oparg);
     format_exc_check_arg(tstate, PyExc_NotWriteableError,
                          NOT_WRITEABLE_ERROR_MSG, name);
+}
+
+static void
+format_exc_nomessages(PyThreadState *tstate, PyCodeObject *co, int oparg)
+{
+    PyObject *name;
+    /* Don't stomp existing exception */
+    if (_PyErr_Occurred(tstate))
+        return;
+    name = PyTuple_GET_ITEM(co->co_localsplusnames, oparg);
+    format_exc_check_arg(tstate, PyExc_NoMessagesError,
+                         NO_MESSAGES_ERROR_MSG, name);
 }
 
 static void

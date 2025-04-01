@@ -41,9 +41,9 @@ This functionality will also be exposed at the C ABI level as:
  * interp: A InterpreterID object
  * o: Any sendable object
  *
- * Returns: None if successful, NULL if an error has occured
+ * Returns: 0 if successful, 1 if an error has occured
  */
-PyObject* Py_Send(PyObject* interp, PyObject* o)
+int _PyInterpreterState_Send(PyInterpreterState* interp, PyObject* o)
 
 /**
  * Receive an object sent to the specified interpreter.
@@ -56,7 +56,7 @@ PyObject* Py_Send(PyObject* interp, PyObject* o)
  * 
  * Returns: object if successful, NULL if there was an error
  */
-PyObject* Py_Receive(PyObject* interp, bool blocking, int timeout)
+PyObject* Py_Receive(PyInterpreterState* interp, bool blocking, int timeout)
 ```
 
 ## Implementation details
@@ -66,7 +66,7 @@ Each interpreter will now have a *message queue* as part of the
 and deallocated when the interpreter is finalised.  It will be implemented as
 a multi-producer, single consumer concurrent queue. In this initial
 version of the system, only immutable objects (*i.e.*, objects for which
-`isimmutable` returns `True`) will be sendable. `Py_Send` will have the
+`isimmutable` returns `True`) will be sendable. `send` will have the
 following logic:
 
 ```
@@ -87,7 +87,7 @@ function Send(interp, o)
     return None
 ```
 
-`Py_Receive` will have the following logic:
+`receive` will have the following logic:
 
 ```
 function Receive(interp, blocking, timeout)
