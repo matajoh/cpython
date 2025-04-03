@@ -89,10 +89,12 @@ system also uses the second-to-top bit for managing immutable graphs.
 #define _Py_REFCNT_MASK 0xFFFFFFFF
 #define _Py_IMMUTABLE_FLAG 0x4000000000
 #define _Py_IMMUTABLE_SCC_FLAG 0x8000000000
+#define _Py_IMMUTABLE_SHIFT 34
 #else
 #define _Py_REFCNT_MASK 0x1FFFFFFF
 #define _Py_IMMUTABLE_FLAG 0x20000000
 #define _Py_IMMUTABLE_SCC_FLAG 0x40000000
+#define _Py_IMMUTABLE_SHIFT 29
 #endif
 
 #define _Py_IMMUTABLE_MASK (_Py_IMMUTABLE_SCC_FLAG | _Py_IMMUTABLE_FLAG)

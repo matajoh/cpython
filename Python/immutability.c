@@ -298,6 +298,22 @@ static int freeze_visit(PyObject* obj, void* frontier)
     return 0;
 }
 
+#define MUTABLE 0
+#define IMMUTABLE_DIRECT 1
+#define IMMUTABLE_INDIRECT 2
+#define PENDING 3
+#define IMMUTABLE_STATUS_GET(op) ((_PyObject_Cast(op)->ob_refcnt & _Py_IMMUTABLE_MASK) >> _Py_IMMUTABLE_SHIFT)
+
+
+static inline void _Py_SetImmutableStatus(PyObject* op, int status)
+{
+    op->ob_refcnt &= _Py_REFCNT_MASK;
+    op->ob_refcnt |= (status << _Py_IMMUTABLE_SHIFT);
+}
+
+#define IMMUTABLE_STATUS_SET(op, status) _Py_SetImmutableStatus(_PyObject_CAST(op), (status))
+
+
 PyObject* _Py_Freeze(PyObject* obj)
 {
     PyObject* frontier = NULL;
