@@ -74,8 +74,6 @@ static PyObject* walk_function(PyObject* op, PyObject* frontier)
     PyObject* frozen_builtins = NULL;
     PyObject* globals = NULL;
     PyObject* frozen_globals = NULL;
-    PyObject* module = NULL;
-    PyObject* module_dict = NULL;
     PyFunctionObject* f = NULL;
     PyObject* f_ptr = NULL;
     PyCodeObject* f_code = NULL;
@@ -91,29 +89,6 @@ static PyObject* walk_function(PyObject* op, PyObject* frontier)
 
     globals = f->func_globals;
     builtins = f->func_builtins;
-
-    module = PyImport_Import(f->func_module);
-    if(module == NULL){
-        // clear the exception so we can check if the module is a namedtuple
-        PyObject* exc = PyErr_GetRaisedException();
-        _Py_DECLARE_STR(namedtuple, "namedtuple");
-        _Py_DECLARE_STR(startswith, "startswith");
-        PyObject* res = PyObject_CallMethodOneArg(f->func_module, &_Py_STR(startswith), &_Py_STR(namedtuple));
-        if(Py_IsTrue(res)){
-            // namedtuple creates a fake module, which cannot be imported
-            Py_RETURN_NONE;
-        }
-
-        // not a namedtuple, so we need to set the exception
-        PyErr_SetRaisedException(exc);
-        return NULL;
-    }
-
-    if(PyModule_Check(module)){
-        module_dict = PyModule_GetDict(module);
-    }else{
-        module_dict = NULL;
-    }
 
     _Py_VISIT_FUNC_ATTR(f->func_defaults, frontier);
     _Py_VISIT_FUNC_ATTR(f->func_kwdefaults, frontier);
@@ -180,16 +155,6 @@ static PyObject* walk_function(PyObject* op, PyObject* frontier)
                     Py_DECREF(frozen_globals);
                     Py_DECREF(f_stack);
                     return NULL;
-                }
-            }else if(PyDict_Contains(module_dict, name)){
-                PyObject* value = PyDict_GetItem(module_dict, name);
-
-                _PyDict_SetKeyImmutable((PyDictObject*)module_dict, name);
-
-                if(!_Py_IsImmutable(value)){
-                    if(push(frontier, value)){
-                        goto nomemory;
-                    }
                 }
             }
         }
