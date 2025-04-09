@@ -625,7 +625,7 @@ class TestImport(unittest.TestCase):
         def f():
             import sys
             pass
-        
+
         freeze(f)
 
         # The following should not fail, but we
@@ -652,10 +652,10 @@ class TestFunctionAttributes(unittest.TestCase):
 
         with self.assertRaises(NotWriteableError):
             f.__builtins__ = {}
-        
+
         with self.assertRaises(NotWriteableError):
             f.__builtins__["foo"] = 2
-        
+
         with self.assertRaises(NotWriteableError):
             def g():
                 pass
@@ -675,7 +675,7 @@ class TestFunctionAttributes(unittest.TestCase):
 
         with self.assertRaises(NotWriteableError):
             f.__globals__ = {}
-        
+
         with self.assertRaises(NotWriteableError):
             f.__globals__["foo"] = 2
 
