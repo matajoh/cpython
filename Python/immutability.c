@@ -46,15 +46,6 @@ static bool is_c_wrapper(PyObject* obj){
     return PyCFunction_Check(obj) || Py_IS_TYPE(obj, &_PyMethodWrapper_Type) || Py_IS_TYPE(obj, &PyWrapperDescr_Type);
 }
 
-#define _Py_VISIT_FUNC_ATTR(attr, frontier) do { \
-    if(attr != NULL && !_Py_IsImmutable(attr)){ \
-        if(push((frontier), (attr))){ \
-            return PyErr_NoMemory(); \
-        } \
-    } \
-} while(0)
-
-
 /**
  * Special function for replacing globals and builtins with a copy of just what they use.
  *
