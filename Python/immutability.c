@@ -18,7 +18,7 @@ static int push(PyObject* s, PyObject* item){
         return -1;
     }
 
-    return _PyList_AppendTakeRef(_PyList_CAST(s), item);
+    return _PyList_AppendTakeRef(_PyList_CAST(s), Py_NewRef(item));
 }
 
 static PyObject* pop(PyObject* s){
@@ -33,9 +33,7 @@ static PyObject* pop(PyObject* s){
         return NULL;
     }
 
-    Py_INCREF(item);
     if(PyList_SetSlice(s, size - 1, size, NULL)){
-        Py_DECREF(item);
         return NULL;
     }
 
