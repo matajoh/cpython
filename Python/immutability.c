@@ -56,7 +56,7 @@ static bool is_c_wrapper(PyObject* obj){
 
 
 /**
- * Special function for walking the reachable graph of a function object.
+ * Special function for replacing globals and builtins with a copy of just what they use.
  *
  * This is necessary because the function object has a pointer to the global
  * dictionary, and this is problematic because freezing any function directly
@@ -64,139 +64,96 @@ static bool is_c_wrapper(PyObject* obj){
  *
  * Instead, we walk the function and find any places where it references
  * global variables or builtins, and then freeze just those objects. The globals
- * and builtins dictionaries for the function are then replaced with frozen
+ * and builtins dictionaries for the function are then replaced with
  * copies containing just those globals and builtins we were able to determine
  * the function uses.
  */
-static PyObject* walk_function(PyObject* op, PyObject* frontier)
+static PyObject* shadow_function_globals(PyObject* op)
 {
     PyObject* builtins = NULL;
-    PyObject* frozen_builtins = NULL;
+    PyObject* shadow_builtins = NULL;
     PyObject* globals = NULL;
-    PyObject* frozen_globals = NULL;
+    PyObject* shadow_globals = NULL;
     PyFunctionObject* f = NULL;
     PyObject* f_ptr = NULL;
     PyCodeObject* f_code = NULL;
     Py_ssize_t size;
-    PyObject* f_stack = NULL;
     bool check_globals = false;
 
     _PyObject_ASSERT(op, PyFunction_Check(op));
-
-    _Py_SetImmutable(op);
 
     f = (PyFunctionObject*)op;
 
     globals = f->func_globals;
     builtins = f->func_builtins;
 
-    _Py_VISIT_FUNC_ATTR(f->func_defaults, frontier);
-    _Py_VISIT_FUNC_ATTR(f->func_kwdefaults, frontier);
-    _Py_VISIT_FUNC_ATTR(f->func_doc, frontier);
-    _Py_VISIT_FUNC_ATTR(f->func_name, frontier);
-    _Py_VISIT_FUNC_ATTR(f->func_dict, frontier);
-    _Py_VISIT_FUNC_ATTR(f->func_closure, frontier);
-    _Py_VISIT_FUNC_ATTR(f->func_annotations, frontier);
-    _Py_VISIT_FUNC_ATTR(f->func_typeparams, frontier);
-    _Py_VISIT_FUNC_ATTR(f->func_qualname, frontier);
-
-    f_stack = PyList_New(0);
-    if(f_stack == NULL){
-        return PyErr_NoMemory();
-    }
-
     f_ptr = f->func_code;
-    if(push(f_stack, f_ptr)){
+
+    shadow_builtins = PyDict_New();
+    if(shadow_builtins == NULL){
         goto nomemory;
     }
 
-    frozen_builtins = PyDict_New();
-    if(frozen_builtins == NULL){
+    shadow_globals = PyDict_New();
+    if(shadow_globals == NULL){
         goto nomemory;
     }
 
-    frozen_globals = PyDict_New();
-    if(frozen_globals == NULL){
-        goto nomemory;
-    }
+    _PyObject_ASSERT(f_ptr, PyCode_Check(f_ptr));
+    f_code = (PyCodeObject*)f_ptr;
 
-    while(PyList_Size(f_stack) != 0){
-        f_ptr = pop(f_stack);
-        _PyObject_ASSERT(f_ptr, PyCode_Check(f_ptr));
-        f_code = (PyCodeObject*)f_ptr;
+    size = 0;
+    if (f_code->co_names != NULL)
+        size = PySequence_Fast_GET_SIZE(f_code->co_names);
+    for(Py_ssize_t i = 0; i < size; i++){
+        PyObject* name = PySequence_Fast_GET_ITEM(f_code->co_names, i);
 
-        size = 0;
-        if (f_code->co_names != NULL)
-          size = PySequence_Fast_GET_SIZE(f_code->co_names);
-        for(Py_ssize_t i = 0; i < size; i++){
-            PyObject* name = PySequence_Fast_GET_ITEM(f_code->co_names, i);
+        if(PyUnicode_CompareWithASCIIString(name, "globals") == 0){
+            // if the code calls the globals() builtin, then any
+            // cellvar or const in the function could, potentially, refer to
+            // a global variable. As such, we need to check if the globals
+            // dictionary contains that key and then make it immutable
+            // from this point forwards.
+            check_globals = true;
+        }
 
-            if(PyUnicode_CompareWithASCIIString(name, "globals") == 0){
-                // if the code calls the globals() builtin, then any
-                // cellvar or const in the function could, potentially, refer to
-                // a global variable. As such, we need to check if the globals
-                // dictionary contains that key and then make it immutable
-                // from this point forwards.
-                check_globals = true;
+        if(PyDict_Contains(globals, name)){
+            PyObject* value = PyDict_GetItem(globals, name);
+            if(PyDict_SetItem(shadow_globals, name, value)){
+                Py_DECREF(shadow_builtins);
+                Py_DECREF(shadow_globals);
+                return NULL;
             }
+        }else if(PyDict_Contains(builtins, name)){
+            PyObject* value = PyDict_GetItem(builtins, name);
+            if(PyDict_SetItem(shadow_builtins, name, value)){
+                Py_DECREF(shadow_builtins);
+                Py_DECREF(shadow_globals);
+                return NULL;
+            }
+        }
+    }
 
+    size = PySequence_Fast_GET_SIZE(f_code->co_consts);
+    for(Py_ssize_t i = 0; i < size; i++){
+        PyObject* value = PySequence_Fast_GET_ITEM(f_code->co_consts, i);
+        if(check_globals && PyUnicode_Check(value)){
+            // if the code calls the globals() builtin, then any
+            // cellvar or const in the function could, potentially, refer to
+            // a global variable. As such, we need to check if the globals
+            // dictionary contains that key and then make it immutable
+            // from this point forwards.
+            PyObject* name = value;
             if(PyDict_Contains(globals, name)){
-                PyObject* value = PyDict_GetItem(globals, name);
-                if(PyDict_SetItem(frozen_globals, name, value)){
-                    Py_DECREF(frozen_builtins);
-                    Py_DECREF(frozen_globals);
-                    Py_DECREF(f_stack);
+                value = PyDict_GetItem(globals, name);
+                if(PyDict_SetItem(shadow_globals, name, value)){
+                    Py_DECREF(shadow_builtins);
+                    Py_DECREF(shadow_globals);
                     return NULL;
-                }
-            }else if(PyDict_Contains(builtins, name)){
-                PyObject* value = PyDict_GetItem(builtins, name);
-                if(PyDict_SetItem(frozen_builtins, name, value)){
-                    Py_DECREF(frozen_builtins);
-                    Py_DECREF(frozen_globals);
-                    Py_DECREF(f_stack);
-                    return NULL;
-                }
-            }
-        }
-
-        size = PySequence_Fast_GET_SIZE(f_code->co_consts);
-        for(Py_ssize_t i = 0; i < size; i++){
-            PyObject* value = PySequence_Fast_GET_ITEM(f_code->co_consts, i);
-            if(!_Py_IsImmutable(value)){
-                if(PyCode_Check(value)){
-                    _Py_SetImmutable(value);
-
-                    if(push(f_stack, value)){
-                        goto nomemory;
-                    }
-                }else{
-                    if(push(frontier, value)){
-                        goto nomemory;
-                    }
-                }
-            }
-
-            if(check_globals && PyUnicode_Check(value)){
-                // if the code calls the globals() builtin, then any
-                // cellvar or const in the function could, potentially, refer to
-                // a global variable. As such, we need to check if the globals
-                // dictionary contains that key and then make it immutable
-                // from this point forwards.
-                PyObject* name = value;
-                if(PyDict_Contains(globals, name)){
-                    value = PyDict_GetItem(globals, name);
-                    if(PyDict_SetItem(frozen_globals, name, value)){
-                        Py_DECREF(frozen_builtins);
-                        Py_DECREF(frozen_globals);
-                        Py_DECREF(f_stack);
-                        return NULL;
-                    }
                 }
             }
         }
     }
-
-    Py_DECREF(f_stack);
 
     if(check_globals){
         // if the code calls the globals() builtin, then any
@@ -218,9 +175,9 @@ static PyObject* walk_function(PyObject* op, PyObject* frontier)
                 PyObject* name = value;
                 if(PyDict_Contains(globals, name)){
                     value = PyDict_GetItem(globals, name);
-                    if(PyDict_SetItem(frozen_globals, name, value)){
-                        Py_DECREF(frozen_builtins);
-                        Py_DECREF(frozen_globals);
+                    if(PyDict_SetItem(shadow_globals, name, value)){
+                        Py_DECREF(shadow_builtins);
+                        Py_DECREF(shadow_globals);
                         return NULL;
                     }
                 }
@@ -228,26 +185,17 @@ static PyObject* walk_function(PyObject* op, PyObject* frontier)
         }
     }
 
-    if(push(frontier, frozen_globals)){
-        goto nomemory;
-    }
-
-    f->func_globals = frozen_globals;
+    f->func_globals = shadow_globals;
     Py_DECREF(globals);
 
-    if(push(frontier, frozen_builtins)){
-        goto nomemory;
-    }
-
-    f->func_builtins = frozen_builtins;
+    f->func_builtins = shadow_builtins;
     Py_DECREF(builtins);
 
     Py_RETURN_NONE;
 
 nomemory:
-    Py_XDECREF(frozen_builtins);
-    Py_XDECREF(frozen_globals);
-    Py_XDECREF(f_stack);
+    Py_XDECREF(shadow_builtins);
+    Py_XDECREF(shadow_globals);
     return PyErr_NoMemory();
 }
 
@@ -332,19 +280,17 @@ PyObject* _Py_Freeze(PyObject* obj)
         }
 
         if(PyFunction_Check(item)){
-            result = walk_function(item, frontier);
+            result = shadow_function_globals(item);
             if(!Py_IsNone(result)){
                 goto cleanup;
             }
         }
-        else
-        {
-            traverse = type->tp_traverse;
-            if(traverse != NULL){
-                if(traverse(item, (visitproc)freeze_visit, frontier)){
-                    result = NULL;
-                    goto cleanup;
-                }
+
+        traverse = type->tp_traverse;
+        if(traverse != NULL){
+            if(traverse(item, (visitproc)freeze_visit, frontier)){
+                result = NULL;
+                goto cleanup;
             }
         }
 

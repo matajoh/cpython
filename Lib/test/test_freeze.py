@@ -394,6 +394,19 @@ class TestFunctions(unittest.TestCase):
         self.assertFalse(isimmutable(global_canary))
         self.assertRaises(NotWriteableError, d)
 
+    def test_hidden_global(self):
+        global global0
+        def hide_access():
+            global global0
+            global0 += 1
+            return global0
+        def d():
+            return hide_access()
+        global0 = 0
+        self.assertEqual(d(), 1)
+        freeze(d)
+        self.assertRaises(NotWriteableError, d)
+
     def test_builtins(self):
         def e():
             test = list(range(5))
