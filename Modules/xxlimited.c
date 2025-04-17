@@ -127,11 +127,12 @@ Xxo_traverse(PyObject *self_obj, visitproc visit, void *arg)
 static int
 Xxo_clear(XxoObject *self)
 {
-    if (!Py_CHECKWRITE(self)) {
-        PyErr_WriteToImmutable(self);
-        return -1;
-    }
-    
+    // TODO: Pyrona:
+    // if (!Py_CHECKWRITE(self)) {
+    //     PyErr_WriteToImmutable(self);
+    //     return -1;
+    // }
+
     Py_CLEAR(self->x_attr);
     return 0;
 }
@@ -175,10 +176,11 @@ Xxo_getattro(XxoObject *self, PyObject *name)
 static int
 Xxo_setattro(XxoObject *self, PyObject *name, PyObject *v)
 {
-    if (!Py_CHECKWRITE(self)) {
-        PyErr_WriteToImmutable(self);
-        return -1;
-    }
+    // TODO: Pyrona:
+    // if (!Py_CHECKWRITE(self)) {
+    //     PyErr_WriteToImmutable(self);
+    //     return -1;
+    // }
 
     if (self->x_attr == NULL) {
         // prepare the attribute dict
@@ -251,9 +253,10 @@ Xxo_getbuffer(XxoObject *self, Py_buffer *view, int flags)
         // Not incrementing the counter is safe, since it's only used to prevent
         // memory reallocation, which should never happen for an immutable object
         // anyways.
-        if (Py_CHECKWRITE(self)) {
-            self->x_exports++;
-        }
+        // TODO: Pyrona:
+        // if (Py_CHECKWRITE(self)) {
+        //     self->x_exports++;
+        // }
     }
     return res;
 }
@@ -264,9 +267,10 @@ Xxo_releasebuffer(XxoObject *self, Py_buffer *view)
     // Not decrementing the counter is safe, since it's only used to prevent
     // memory reallocation, which should never happen for an immutable object
     // anyways.
-    if (!Py_CHECKWRITE(self)) {
-        return;
-    }
+    // TODO: Pyrona:
+    // if (!Py_CHECKWRITE(self)) {
+    //     return;
+    // }
 
     self->x_exports--;
 }
@@ -431,10 +435,11 @@ xx_traverse(PyObject *module, visitproc visit, void *arg)
 static int
 xx_clear(PyObject *module)
 {
-    if (!Py_CHECKWRITE(module)) {
-        PyErr_WriteToImmutable(module);
-        return -1;
-    }
+    // TODO: Pyrona:
+    // if (!Py_CHECKWRITE(module)) {
+    //     PyErr_WriteToImmutable(module);
+    //     return -1;
+    // }
 
     xx_state *state = PyModule_GetState(module);
     Py_CLEAR(state->Xxo_Type);

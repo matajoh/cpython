@@ -46,10 +46,11 @@ Xxo_traverse(XxoObject *self, visitproc visit, void *arg)
 static int
 Xxo_clear(XxoObject *self)
 {
-    if (!Py_CHECKWRITE(self)) {
-        PyErr_WriteToImmutable(self);
-        return -1;
-    }
+    // TODO: Pyrona:
+    // if (!Py_CHECKWRITE(self)) {
+    //     PyErr_WriteToImmutable(self);
+    //     return -1;
+    // }
 
     Py_CLEAR(self->x_attr);
     return 0;
@@ -98,10 +99,11 @@ Xxo_getattro(XxoObject *self, PyObject *name)
 static int
 Xxo_setattr(XxoObject *self, const char *name, PyObject *v)
 {
-    if (!Py_CHECKWRITE(self)) {
-        PyErr_WriteToImmutable(self);
-        return -1;
-    }
+    // TODO: Pyrona:
+    // if (!Py_CHECKWRITE(self)) {
+    //     PyErr_WriteToImmutable(self);
+    //     return -1;
+    // }
 
     if (self->x_attr == NULL) {
         self->x_attr = PyDict_New();

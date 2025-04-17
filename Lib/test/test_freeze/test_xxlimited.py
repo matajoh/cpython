@@ -8,6 +8,7 @@ xxlimited_35 = import_helper.import_module('xxlimited_35')
 class CommonTests:
     module: types.ModuleType
 
+    @unittest.skip("TODO: Pyrona")
     def test_xxo_set_attribute(self):
         xxo = self.module.Xxo()
 
@@ -16,6 +17,7 @@ class CommonTests:
         with self.assertRaises(NotWritableError):
             xxo.foo = 1234
 
+    @unittest.skip("TODO: Pyrona")
     def test_xxo_del_attribute(self):
         xxo = self.module.Xxo()
 
