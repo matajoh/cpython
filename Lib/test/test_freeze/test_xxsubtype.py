@@ -1,9 +1,7 @@
 import unittest
+from test.support import import_helper
 
-try:
-    import xxsubtype
-except ImportError:
-    xxsubtype = None
+xxsubtype = import_helper.import_module('xxsubtype')
 
 class xxsubtypelib(unittest.TestCase):
 

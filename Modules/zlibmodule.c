@@ -2019,19 +2019,19 @@ zlib_exec(PyObject *mod)
     // Removing the `PyNotFreezable_Type` type later shouldn't be a breaking
     // change.
     state->Comptype = (PyTypeObject *)PyType_FromModuleAndSpec(
-        mod, &Comptype_spec, &PyNotFreezable_Type);
+        mod, &Comptype_spec, (PyObject*)&PyNotFreezable_Type);
     if (state->Comptype == NULL) {
         return -1;
     }
 
     state->Decomptype = (PyTypeObject *)PyType_FromModuleAndSpec(
-        mod, &Decomptype_spec, &PyNotFreezable_Type);
+        mod, &Decomptype_spec, (PyObject*)&PyNotFreezable_Type);
     if (state->Decomptype == NULL) {
         return -1;
     }
 
     state->ZlibDecompressorType = (PyTypeObject *)PyType_FromModuleAndSpec(
-        mod, &ZlibDecompressor_type_spec, &PyNotFreezable_Type);
+        mod, &ZlibDecompressor_type_spec, (PyObject*)&PyNotFreezable_Type);
     if (state->ZlibDecompressorType == NULL) {
         return -1;
     }
