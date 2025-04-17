@@ -65,6 +65,9 @@
 #define Py_LIMITED_API 0x030b0000
 
 #include "Python.h"
+#include "object.h"
+#include "pylifecycle.h"
+#include "pyerrors.h"
 #include <string.h>
 
 #define BUFSIZE 10
@@ -124,6 +127,11 @@ Xxo_traverse(PyObject *self_obj, visitproc visit, void *arg)
 static int
 Xxo_clear(XxoObject *self)
 {
+    if (!Py_CHECKWRITE(self)) {
+        PyErr_WriteToImmutable(self);
+        return -1;
+    }
+    
     Py_CLEAR(self->x_attr);
     return 0;
 }
@@ -167,6 +175,11 @@ Xxo_getattro(XxoObject *self, PyObject *name)
 static int
 Xxo_setattro(XxoObject *self, PyObject *name, PyObject *v)
 {
+    if (!Py_CHECKWRITE(self)) {
+        PyErr_WriteToImmutable(self);
+        return -1;
+    }
+
     if (self->x_attr == NULL) {
         // prepare the attribute dict
         self->x_attr = PyDict_New();
@@ -235,7 +248,12 @@ Xxo_getbuffer(XxoObject *self, Py_buffer *view, int flags)
                                (void *)self->x_buffer, BUFSIZE,
                                0, flags);
     if (res == 0) {
-        self->x_exports++;
+        // Not incrementing the counter is safe, since it's only used to prevent
+        // memory reallocation, which should never happen for an immutable object
+        // anyways.
+        if (Py_CHECKWRITE(self)) {
+            self->x_exports++;
+        }
     }
     return res;
 }
@@ -243,6 +261,13 @@ Xxo_getbuffer(XxoObject *self, Py_buffer *view, int flags)
 static void
 Xxo_releasebuffer(XxoObject *self, Py_buffer *view)
 {
+    // Not decrementing the counter is safe, since it's only used to prevent
+    // memory reallocation, which should never happen for an immutable object
+    // anyways.
+    if (!Py_CHECKWRITE(self)) {
+        return;
+    }
+
     self->x_exports--;
 }
 
@@ -406,6 +431,11 @@ xx_traverse(PyObject *module, visitproc visit, void *arg)
 static int
 xx_clear(PyObject *module)
 {
+    if (!Py_CHECKWRITE(module)) {
+        PyErr_WriteToImmutable(module);
+        return -1;
+    }
+
     xx_state *state = PyModule_GetState(module);
     Py_CLEAR(state->Xxo_Type);
     Py_CLEAR(state->Error_Type);
